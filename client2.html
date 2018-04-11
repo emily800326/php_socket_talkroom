@@ -1,0 +1,181 @@
+<!-- #利用click來觸發logoutBt()的function,然後submit form到logout.php的頁面 -->
+<form method="POST" action="logout.php" id="outAccount" name="outAccount">
+    <a class="btn btn-default btn-top " data-toggle="modal" data-target="#exampleModal" role="button" onClick="logoutBt()">登出</a>
+</form>
+
+<script>
+    function logoutBt() {
+        document.getElementById('outAccount').submit();
+    }
+    (function () {
+        var key = 'all',
+            mkey;
+        var users = {};
+        var url = 'ws://122.147.5.165:3333';
+        var so = false,
+            n = false;
+        var lus = A.$('us'),
+            lct = A.$('ct');
+        //一進頁面請他先取一個匿稱
+        function st() {
+            n = prompt('請给自己取一個響亮的名字：');
+            n = n.substr(0, 16);
+            if (!n) {
+                return;
+            }
+            //創建socket，注意URL的格式：ws://ip:端口
+            so = new WebSocket(url);
+            //握手監聽函數
+            so.onopen = function () {
+                //狀態為1證明握手成功，然後把client自定義的名字發送過去
+                if (so.readyState == 1) {
+                    so.send('type=add&ming=' + n);
+                }
+            }
+
+            //握手失敗或者其他原因連接socket失敗，則清除so對象並做相應提示操作
+            so.onclose = function () {
+                so = false;
+
+                lct.appendChild(A.$$('<div class="dialog-me" ><div class="dialog-content-me">退出聊天室</div></div>'));
+            }
+
+            //數據接收監聽，接收服務器送過來的信息，返回的數據给msg，然後進行顯示
+            so.onmessage = function (msg) {
+                eval('var da=' + msg.data);
+                var obj = false,
+                    c = false;
+                //da.code 發訊息人的code
+                //da.code1 收訊息人的code  這裡的範例是傳給全部人 ->> all
+                //下面是進入聊天室的歡迎訊息和新增使用者到使用者列表裡
+                //其他人進入聊天室
+                if (da.type == 'add') {
+                    var obj = A.$$('<li><a>' + da.name + '</a></li>');
+                    lus.appendChild(obj);
+                    //上面兩個新增節點的語句也可以換成下面兩句
+                    //var ob2=A.$$('<li><a>'+da.name+'</a></li>');
+                    //document.getElementById('us_small').appendChild(ob2); 
+                    cuser(obj, da.code);
+                    obj = A.$$('<div><h5>歡迎' + da.name + '加入</h5><div class="dialog" >');
+                    c = da.code;
+                    //自己進入聊天室
+                } else if (da.type == 'madd') {
+                    mkey = da.code;
+                    da.users.unshift({
+                        'code': 'all',
+                        'name': 'ALL'
+                    });
+                    for (var i = 0; i < da.users.length; i++) {
+                        var obj = A.$$('<li><a>' + da.users[i].name + '</a></li>');
+                        lus.appendChild(obj);
+                        if (mkey != da.users[i].code) {
+                            cuser(obj, da.users[i].code);
+                        } else {
+                            obj.className = 'my';
+                            document.title = da.users[i].name;
+                        }
+                    }
+
+                    obj = A.$$("<h5>歡迎" + da.name + "加入</h5>");
+                    users.all.className = 'ck';
+                }
+
+                if (obj == false) {
+                    if (da.type == 'rmove') {
+                        //如果傳過來的動作是退出聊天室要把users裡面該名使用者的資訊去除掉
+                        var obj = A.$$("<h5>" + users[da.nrong].innerHTML + "退出聊天室</h5>");
+                        lct.appendChild(obj);
+                        users[da.nrong].del();
+                        delete users[da.nrong];
+                    } else {
+                        //這裡是發送訊息的動作的code
+                        da.nrong = da.nrong.replace(/{\\(\d+)}/g, function (a, b) {
+                            return '<img src="sk/' + b + '.gif">';
+                        }).replace(/^data\:image\/png;base64\,.{50,}$/i, function (a) {
+                            return '<img src="' + a + '">';
+                        });
+                        //自己說話
+                        if (da.code == mkey) {
+                            obj = A.$$('<div class="dialog-me" ><span class="timestamp-me">' + da.time +
+                                '</span><div class="dialog-content-me">' + da.nrong + '</div></div>');
+                            c = da.code1;
+                        } else if (da.code1) {
+                            //別人說話
+                            var temp = "<div><h5>" + users[da.code].innerHTML +
+                                "</h5><div class='dialog'><div class='dialog-content'>" + da.nrong +
+                                "</div><span class='timestamp'>" + da.time + "</span></div></div>";
+
+                            obj = A.$$(temp);
+                            c = da.code;
+                        }
+                    }
+                }
+                if (c) {
+
+                    obj.children[1].onclick = function () {
+                        users[c].onclick();
+                    }
+                }
+                //新增訊息
+                lct.appendChild(obj);
+                lct.scrollTop = Math.max(0, lct.scrollHeight - lct.offsetHeight);
+
+            }
+        }
+        A.$('sd').onclick = function () {
+            if (!so) {
+                return st();
+            }
+            var da = A.$('nrong').value.trim();
+            if (da == '') {
+                alert('内容不能為空');
+                return false;
+            }
+            A.$('nrong').value = '';
+            so.send('nr=' + esc(da) + '&key=' + key);
+        }
+        A.$('nrong').onkeydown = function (e) {
+            var e = e || event;
+            if (e.keyCode == 13) {
+                A.$('sd').onclick();
+            }
+        }
+
+        function esc(da) {
+            da = da.replace(/</g, '<').replace(/>/g, '>').replace(/\"/g, '"');
+            return encodeURIComponent(da);
+        }
+
+        function cuser(t, code) {
+            users[code] = t;
+            t.onclick = function () {
+                t.parentNode.children.rcss('ck', '');
+                t.rcss('', 'ck');
+                key = code;
+            }
+        }
+
+        st();
+    })();
+</script>
+
+<div class="container-fluid chat-content">
+    <div class="row content">
+        <div class="col-sm-3 sidenav hidden-xs chat-bar">
+            <ul class="nav nav-pills nav-stacked" id="us">
+            </ul>
+        </div>
+        <div class="col-sm-9 well-border">
+            <div class="well well-bar" id="ct">
+            </div>
+            <div class="row">
+                <div class="col-sm-12">
+                    <div class="form-group chat-typing">
+                        <textarea rows="3" id="nrong"></textarea>
+                        <button id="sd" type="button" class="btn btn-outline-primary">發送</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

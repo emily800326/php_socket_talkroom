@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<title>WebSocket Test</title>
+<style>
+    table {
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 80vw;
+    }
+
+    th {
+        /* border: 1px solid #84C7FF; */
+        background-color: rgba(41, 127, 185, 0.52);
+        color: #ECF0F1;
+        text-align: left;
+        padding: 8px;
+    }
+
+    td {
+        border: 1px solid #ECF0F1;
+        text-align: left;
+        padding: 8px;
+    }
+
+    tr:nth-child(even) {
+        background-color: #ECF0F1;
+    }
+</style>
+<script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+<script language="javascript" type="text/javascript">
+    function doSend(message) {
+        writeToScreen("SENT: " + message);
+        websocket.send(message);
+    }
+
+    function writeToScreen(message) {
+        var pre = document.createElement("p");
+        pre.style.wordWrap = "break-word";
+        pre.innerHTML = message;
+        if (output) {
+            output.appendChild(pre);
+        }
+    }
+
+    function who_in() {
+        var person = prompt("Please enter your name!");
+        if (person != null) {
+            websocket.send("Welcome~ " + person);
+        } else {
+            prompt("Please enter your name!");
+        }
+    }
+    var data_w;
+    var county = [];
+
+    function get_weather() {
+        $.ajax({
+            type: "GET",
+            url: "https://opendata.cwb.gov.tw/api/v1/rest/datastore/F-D0047-089?Authorization=CWB-11A11D29-8B81-4416-A171-429D4327B47E",
+            dataType: "json",
+            error: function (e) {
+                console.log('can not get data.');
+            },
+            success: function (data) {
+                data_w = data;
+                $('#location').append('<option value="">Select location!</option>');
+                data_w.records.locations[0].location.forEach(function (e, i) {
+                    county[i] = e.locationName;
+                    $('#location').append('<option value="' + e.locationName + '">' + e.locationName +
+                        '</option>');
+                });
+
+            }
+        });
+    }
+
+    function find_weather_info(place) {
+        data_w.records.locations[0].location.forEach(function (e, i) {
+            if (place == e.locationName) {
+                data_w.records.locations[0].location[i].weatherElement.forEach(function (e, i) {
+                    console.log(i, e);
+                    switch (i) {
+                        case 2:
+                            writeToScreen('<span style="color:blue;">RESPONSE:' + e.description +
+                                '</span>');
+                            var len = e.time.length - 1;
+                            var content = '';
+                            e.time.forEach(
+                                function (e, i) {
+                                    switch (i) {
+                                        case 0:
+                                            content +=
+                                                '<table><tr><th>Time</th><th>temperature</th><tr><td>' +
+                                                e.dataTime + '</td><td>' + e.elementValue[0].value +
+                                                e.elementValue[0].measures + '</td></tr>';
+                                            break;
+                                        case len:
+                                            content += '<tr><td>' + e.dataTime +
+                                                '</td><td>' + e
+                                                .elementValue[
+                                                    0].value + e.elementValue[0].measures +
+                                                '</td></tr></table>';
+                                            break;
+                                        default:
+                                            content += '<tr><td>' + e.dataTime +
+                                                '</td><td>' + e
+                                                .elementValue[
+                                                    0].value +
+                                                e.elementValue[0].measures + '</td></tr>';
+                                            break;
+                                    }
+
+                                });
+                            writeToScreen(content);
+
+                            break;
+                        case 7:
+                            writeToScreen('<span style="color:blue;">RESPONSE:' + e.description +
+                                '</span>');
+                            var len = e.time.length - 1;
+                            var content = '';
+                            e.time.forEach(
+                                function (e, i) {
+                                    switch (i) {
+                                        case 0:
+                                            content +=
+                                                '<table><tr><th>Time</th><th>temperature</th><tr><td>' +
+                                                e.startTime + '~' + e.endTime + '</td><td>' + e.elementValue[
+                                                    0].value + '%' + '</td></tr>';
+                                            break;
+                                        case len:
+                                            content += '<tr><td>' + e.startTime + '~' + e.endTime +
+                                                '</td><td>' + e.elementValue[
+                                                    0].value + '%' +
+                                                '</td></tr></table>';
+                                            break;
+                                        default:
+                                            content += '<tr><td>' + e.startTime + '~' + e.endTime +
+                                                '</td><td>' + e.elementValue[
+                                                    0].value + '%' + '</td></tr>';
+                                            break;
+                                    }
+                                });
+                            writeToScreen(content);
+
+                            break;
+                        default:
+                            // console.log(i);
+                            break;
+                    }
+                });
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        $('#messagea,#location').hide();
+        var wsUri = "wss://echo.websocket.org/";
+        var output = document.getElementById("output");;
+        var message = document.getElementById("messagea");
+        var select = document.getElementById("location");
+
+        if (message) {
+            message.addEventListener("keypress", function (e) {
+                if (this.value) {
+                    if (e.keyCode == 13) {
+                        doSend(this.value);
+                        this.value = null;
+                        var n = $(document).height();
+                        $('html, body').animate({
+                            scrollTop: n
+                        }, 50);
+                    }
+                }
+            });
+        }
+        if (select) {
+            select.addEventListener("change", function (e) {
+                $('#location').hide();
+                doSend("Search " + this.value + " info.");
+                find_weather_info(this.value);
+                var n = $(document).height();
+                $('html, body').animate({
+                    scrollTop: n
+                }, 50);
+            });
+        }
+        websocket = new WebSocket(wsUri);
+
+        websocket.onopen = function (evt) {
+            who_in();
+            writeToScreen(
+                "<b>CONNECTED!<b><br>1.Send 'time' to ask time<br>2.Send 'weather' to ask weather<br>3.Send 'bye' to disconnect. "
+            );
+            $('#messagea').show();
+
+        };
+
+
+
+        websocket.onclose = function (evt) {
+            writeToScreen('<b style="color:green;"> DISCONNECTED<b>');
+            $('#messagea').hide();
+        };
+        websocket.onmessage = function (evt) {
+            var getword = evt.data;
+            switch (getword) {
+                case 'bye':
+                    $('#location').hide();
+
+                    websocket.close()
+                    break;
+                case 'time':
+                    $('#location').hide();
+                    var currentdate = new Date();
+                    writeToScreen('<span style="color:green;"> ' + currentdate + ' </span>');
+                    break;
+                case 'weather':
+                    writeToScreen('<span style="color:blue;">RESPONSE: Select the location! </span>');
+                    get_weather();
+                    $('#location').show();
+                    break;
+                default:
+                    $('#location').hide();
+
+                    if (getword.search("Welcome~") == 0) {
+                        writeToScreen('<span style="color:red;"> ' + evt.data + ' </span>');
+                    } else if (getword.search("Search") == 0) {
+                        // console.log(getword);
+                    } else {
+                        writeToScreen('<span style="color:blue;"> RESPONSE: ' + evt.data +
+                            ' </span>');
+                    }
+                    break;
+
+            }
+
+        };
+
+        websocket.onerror = function (evt) {
+            writeToScreen(' <span style = "color: red;" > ERROR: < /span> ' + evt.data);
+        };
+
+    });
+</script>
+
+<h2>WebSocket Test</h2>
+<input id="messagea" placeholder='Input word!' />
+<div id="output"></div>
+<select id="location" />
